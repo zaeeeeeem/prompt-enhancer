@@ -164,7 +164,7 @@ function attachToInput(el) {
   updatePanelPosition();
 }
 
-// ---------- ICON UI (with your logo) ----------
+// ---------- ICON UI (with your logo + debug + fallback) ----------
 function createIconIfNeeded() {
   if (iconEl) return;
 
@@ -182,9 +182,29 @@ function createIconIfNeeded() {
   iconEl.style.transition = "background 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease";
   iconEl.title = "Click to see enhanced prompt";
 
-  // Your logo image
   const img = document.createElement("img");
-  img.src = chrome.runtime.getURL("assets/logo-24.png");
+
+  // 🔍 DEBUG: check chrome.runtime + URL
+  let logoUrl = null;
+  try {
+    if (typeof chrome !== "undefined" && chrome.runtime && typeof chrome.runtime.getURL === "function") {
+      logoUrl = chrome.runtime.getURL("assets/logo-24.png");
+    }
+  } catch (e) {
+    log("❌ Error calling chrome.runtime.getURL:", e);
+  }
+
+  log("🔍 chrome.runtime exists:", !!(typeof chrome !== "undefined" && chrome.runtime));
+  log("🔍 Logo URL resolved to:", logoUrl);
+
+  if (logoUrl) {
+    img.src = logoUrl;
+  } else {
+    // avoid chrome-extension://invalid
+    img.src = "";
+    log("⚠️ No valid logo URL, using text fallback icon.");
+  }
+
   img.alt = "Prompt enhancer";
   img.style.width = "16px";
   img.style.height = "16px";
@@ -192,7 +212,15 @@ function createIconIfNeeded() {
   img.style.pointerEvents = "none";
 
   img.addEventListener("error", () => {
-    log("❌ Failed to load logo image from assets/logo-24.png");
+    log("❌ Failed to load logo image from assets/logo-24.png, using text fallback.");
+    img.style.display = "none";
+    const fallbackSpan = document.createElement("span");
+    fallbackSpan.textContent = "P";
+    fallbackSpan.style.fontSize = "14px";
+    fallbackSpan.style.fontWeight = "600";
+    fallbackSpan.style.color = "#111827";
+    fallbackSpan.style.pointerEvents = "none";
+    iconEl.appendChild(fallbackSpan);
   });
 
   iconEl.appendChild(img);
@@ -255,6 +283,7 @@ function createPanelIfNeeded() {
   panelEl.style.zIndex = "999999";
   panelEl.style.display = "none";
   panelEl.style.whiteSpace = "pre-wrap";
+  panelEl.style.color = "#000000";   // 🔥 force text to be black always
 
   panelEl.addEventListener("click", onPanelClick);
 
@@ -376,37 +405,29 @@ function onPanelClick(event) {
 }
 
 // ---------- BACKEND CALL (DEV STUB) ----------
+// ---------- BACKEND CALL THROUGH BACKGROUND SCRIPT ----------
 async function callBackendEnhance(rawText) {
-  // 🔧 DEV MODE STUB:
-  const enhanced = rawText.toUpperCase();
-  log("🤖 [DEV] Using fake enhanced prompt:", enhanced);
-  return enhanced;
+  return new Promise((resolve) => {
+    chrome.runtime.sendMessage(
+      {
+        type: "enhancePrompt",
+        originalPrompt: rawText
+      },
+      (response) => {
+        if (!response) {
+          log("❌ No response from background.js");
+          resolve(null);
+          return;
+        }
 
-  /*
-  // REAL VERSION EXAMPLE (when backend is ready):
+        log("📥 Response from background.js:", response);
 
-  try {
-    const response = await fetch("https://your-backend-domain.com/enhance", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: rawText })
-    });
-
-    if (!response.ok) {
-      log("⚠️ Backend responded with non-OK status:", response.status);
-      return null;
-    }
-
-    const data = await response.json();
-    log("📥 Backend JSON:", data);
-
-    return data.enhancedText || null;
-  } catch (err) {
-    log("❌ Error calling backend:", err);
-    return null;
-  }
-  */
+        resolve(response.enhancedPrompt || null);
+      }
+    );
+  });
 }
+
 
 // ---------- KICK-OFF ----------
 setTimeout(() => {
