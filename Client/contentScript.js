@@ -1,9 +1,9 @@
 // contentScript.js
 (function () {
   const LOG_PREFIX = "[PromptEnhancer]";
-  const MIN_TEXT_LENGTH = 3; // don't enhance super short stuff
+  const MIN_TEXT_LENGTH = 3; // don't enhance tiny text
 
-  let attachedInputEl = null;        // textarea or contenteditable
+  let attachedInputEl = null;        // contenteditable or textarea
   let iconEl = null;                 // floating logo icon
   let panelEl = null;                // suggestion panel
 
@@ -81,7 +81,6 @@
     const rect = iconEl.getBoundingClientRect();
 
     panelEl.style.position = "fixed";
-    // place it above / to the left of the icon
     panelEl.style.left = `${Math.max(rect.left - 320 + rect.width, 8)}px`;
     panelEl.style.bottom = `${window.innerHeight - rect.top + 8}px`;
   }
@@ -152,13 +151,20 @@
     iconEl.addEventListener("click", onIconClick);
 
     document.body.appendChild(iconEl);
+    log("🟢 Icon created:", iconEl);
   }
 
   function positionIcon() {
     if (!attachedInputEl || !iconEl) return;
 
     const rect = attachedInputEl.getBoundingClientRect();
+    // If the element is hidden (like the fallback textarea), its rect will be 0
+    if (rect.width === 0 && rect.height === 0) {
+      iconEl.style.display = "none";
+      return;
+    }
 
+    iconEl.style.display = "flex";
     iconEl.style.left = `${rect.right - 36}px`;
     iconEl.style.top = `${rect.bottom - 40}px`;
   }
@@ -197,7 +203,6 @@
 
     const text = getInputText(attachedInputEl);
 
-    // If we ourselves just set the text, ignore this event once
     if (isApplyingEnhanced) {
       log("↩️ Ignoring input event from applying enhanced prompt");
       isApplyingEnhanced = false;
@@ -206,7 +211,7 @@
 
     currentText = text;
 
-    // User changed something → old suggestion is invalid
+    // User changed text → old suggestion invalid
     latestEnhancedPrompt = null;
     latestEnhancedSource = null;
     clearUnderline();
@@ -223,11 +228,11 @@
       return;
     }
 
-    // If we already enhanced this exact text, don't call backend again.
+    // Reuse cached suggestion if text hasn't changed
     if (latestEnhancedPrompt && latestEnhancedSource === rawText) {
       log("🔁 Reusing cached enhanced prompt (no new API call).");
-      showPanelWithText(latestEnhancedPrompt + "\n\n(click to replace prompt)");
       applyUnderline();
+      showPanelWithText(latestEnhancedPrompt + "\n\n(click to replace prompt)");
       return;
     }
 
@@ -264,35 +269,64 @@
     isApplyingEnhanced = true;
     setInputText(attachedInputEl, latestEnhancedPrompt);
     hidePanel();
-    clearUnderline(); // optional: you can keep underline if you like
+    clearUnderline(); // or keep underline if you like
   }
 
-  // ---------- ATTACH TO CHATGPT INPUT ----------
+  // ---------- ATTACH TO THE *VISIBLE* CHATGPT INPUT ----------
 
   function findChatGPTInput() {
-    // Newer ChatGPT UI
-    const newEditable = document.querySelector(
-      'div[data-message-editor="true"] div[contenteditable="true"]'
-    );
-    if (newEditable) return newEditable;
+    // 1) Grab the fallback textarea if it exists
+    const textarea = document.querySelector('textarea[name="prompt-textarea"]');
 
-    // Generic contenteditable fallback
-    const allEditables = document.querySelectorAll('div[contenteditable="true"]');
-    for (const el of allEditables) {
-      const name = el.getAttribute("name") || "";
-      const ariaLabel = el.getAttribute("aria-label") || "";
+    if (textarea) {
+      // Try to find a visible contenteditable in the same form
+      const form = textarea.closest("form");
+      if (form) {
+        const editor = Array.from(
+          form.querySelectorAll('div[contenteditable="true"]')
+        ).find((el) => {
+          const style = window.getComputedStyle(el);
+          return style.display !== "none" && style.visibility !== "hidden";
+        });
+        if (editor) {
+          return editor;
+        }
+      }
+
+      // If no editor found, but textarea itself is visible, use it
+      const tStyle = window.getComputedStyle(textarea);
+      if (tStyle.display !== "none" && tStyle.visibility !== "hidden") {
+        return textarea;
+      }
+    }
+
+    // 2) Fallback: any visible contenteditable that looks like a prompt box
+    const candidates = Array.from(
+      document.querySelectorAll('div[contenteditable="true"]')
+    );
+    for (const el of candidates) {
+      const style = window.getComputedStyle(el);
+      if (style.display === "none" || style.visibility === "hidden") continue;
+
+      const name = (el.getAttribute("name") || "").toLowerCase();
+      const ariaLabel = (el.getAttribute("aria-label") || "").toLowerCase();
       if (
-        name.toLowerCase().includes("prompt") ||
-        ariaLabel.toLowerCase().includes("message") ||
-        ariaLabel.toLowerCase().includes("chat")
+        name.includes("prompt") ||
+        ariaLabel.includes("message") ||
+        ariaLabel.includes("chat")
       ) {
         return el;
       }
     }
 
-    // Old-style textarea fallback
-    const textarea = document.querySelector('textarea[name="prompt-textarea"], textarea');
-    if (textarea) return textarea;
+    // 3) Last resort: any visible textarea
+    const textareas = Array.from(document.querySelectorAll("textarea"));
+    for (const ta of textareas) {
+      const style = window.getComputedStyle(ta);
+      if (style.display !== "none" && style.visibility !== "hidden") {
+        return ta;
+      }
+    }
 
     return null;
   }
