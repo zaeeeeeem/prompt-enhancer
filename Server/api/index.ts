@@ -38,19 +38,23 @@ const createApp = (): Application => {
   app.use(
     cors({
       origin: (origin, callback) => {
-        if (!origin && process.env.NODE_ENV === 'development') {
+        // Allow requests with no origin (direct browser access, curl, etc.)
+        if (!origin) {
           return callback(null, true);
         }
 
-        if (origin && origin.startsWith('chrome-extension://')) {
+        // Allow chrome extension origins
+        if (origin.startsWith('chrome-extension://')) {
           return callback(null, true);
         }
 
+        // Check if origin matches exact allowed origin
         if (origin === allowedOrigin) {
           return callback(null, true);
         }
 
-        if (process.env.NODE_ENV === 'development' && origin?.includes('localhost')) {
+        // For development, also allow localhost
+        if (process.env.NODE_ENV === 'development' && origin.includes('localhost')) {
           return callback(null, true);
         }
 
