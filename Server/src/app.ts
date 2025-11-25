@@ -90,7 +90,7 @@ const createApp = (): Application => {
   app.use(globalRateLimiter);
 
   // Request logging middleware
-  app.use((req: Request, res: Response, next) => {
+  app.use((req: Request, _res: Response, next) => {
     logger.info('Incoming request', {
       method: req.method,
       path: req.path,
@@ -101,7 +101,7 @@ const createApp = (): Application => {
   });
 
   // Root endpoint
-  app.get('/', (req: Request, res: Response) => {
+  app.get('/', (_req: Request, res: Response) => {
     res.json({
       name: 'PromptEnhance Backend',
       version: '1.0.0',

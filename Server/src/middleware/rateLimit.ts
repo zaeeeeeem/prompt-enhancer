@@ -17,7 +17,7 @@ export const enhanceRateLimiter = rateLimit({
   legacyHeaders: false, // Disable `X-RateLimit-*` headers
 
   // Custom message
-  handler: (req, res) => {
+  handler: (_req, res) => {
     const errorResponse: ErrorResponse = {
       error: true,
       message: 'Too many requests. Please try again later.',
@@ -47,7 +47,7 @@ export const globalRateLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 
-  handler: (req, res) => {
+  handler: (_req, res) => {
     const errorResponse: ErrorResponse = {
       error: true,
       message: 'Too many requests from this IP. Please try again later.',

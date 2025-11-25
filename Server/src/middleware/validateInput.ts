@@ -14,7 +14,7 @@ import { EnhanceRequest } from '../types/EnhanceTypes';
  */
 export const validateEnhanceInput = (
   req: Request,
-  res: Response,
+  _res: Response,
   next: NextFunction
 ): void => {
   const body = req.body as Partial<EnhanceRequest>;
@@ -52,7 +52,7 @@ export const validateEnhanceInput = (
  */
 export const validateContentType = (
   req: Request,
-  res: Response,
+  _res: Response,
   next: NextFunction
 ): void => {
   if (req.method === 'POST' && !req.is('application/json')) {
