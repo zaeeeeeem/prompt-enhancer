@@ -34,7 +34,10 @@ const consoleFormat = winston.format.combine(
 
 /**
  * Winston logger instance
+ * In Vercel/serverless environments, only use console (filesystem is read-only)
  */
+const isVercel = process.env.VERCEL === '1' || process.env.AWS_LAMBDA_FUNCTION_NAME;
+
 const logger = winston.createLogger({
   level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
   format: logFormat,
@@ -43,8 +46,8 @@ const logger = winston.createLogger({
     new winston.transports.Console({
       format: consoleFormat,
     }),
-    // File transport for errors in production
-    ...(process.env.NODE_ENV === 'production'
+    // File transport only for non-serverless production environments
+    ...(process.env.NODE_ENV === 'production' && !isVercel
       ? [
           new winston.transports.File({
             filename: 'logs/error.log',
